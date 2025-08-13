@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atovio BLE Diagnostics & Viewer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<style>
+  :root { --fg:#0b1020; --muted:#6b7280; --border:#e5e7eb; --bg:#ffffff; --card:#fafafa; --accent:#2563eb; }
+  [data-theme="dark"] { --fg:#e5e7eb; --muted:#9ca3af; --border:#334155; --bg:#0b1020; --card:#121a2b; --accent:#60a5fa; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--fg); background:var(--bg); margin:24px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .grid { display:grid; gap:16px; grid-template-columns: repeat(12,1fr); }
+  .card { border:1px solid var(--border); border-radius:14px; background:var(--card); padding:16px; }
+  .span6 { grid-column: span 6; } .span12 { grid-column: span 12; }
+  label { display:block; font-size:12px; color:#8b8f98; margin:8px 0 4px; }
+  input[type=text] { width:100%; padding:10px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--fg); font-family: ui-monospace,SFMono-Regular,Menlo,monospace;}
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); font-size:12px; color:var(--fg); background:var(--bg); }
+  #status { font-weight:600; }
+  #log { background:#0f172a; color:#e5e7eb; font:12px/1.5 ui-monospace,monospace; padding:12px; border-radius:10px; max-height:260px; overflow:auto; white-space:pre-wrap; }
+  table { width:100%; border-collapse: collapse; font-size:12px; }
+  th, td { border-top:1px solid var(--border); padding:8px 10px; vertical-align:top; }
+  .valueBox { font: 600 26px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; padding:12px; background:var(--bg); border:1px solid var(--border); border-radius:12px; min-height:36px; }
+  .small { font-size:12px; color:var(--muted); }
+  .warn { color:#f59e0b; }
+  .ok { color:#10b981; }
+  .err { color:#ef4444; }
+  .btn { padding:10px 14px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--fg); cursor:pointer; transition:.15s transform,.15s box-shadow; }
+  .btn:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); transform: translateY(-1px); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+  .btn-primary { border-color:var(--accent); color:#fff; background:var(--accent); }
+  .right { margin-left:auto; }
+  .toolbar { display:flex; gap:10px; align-items:center; }
+  .kv { display:grid; grid-template-columns: 140px 1fr; gap:8px 12px; font-size:14px; }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .seg button { border:0; padding:8px 12px; background:transparent; color:var(--fg); }
+  .seg button.active { background:var(--accent); color:#fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <h1>Atovio BLE Diagnostics & Viewer</h1>
+    <span class="right"></span>
+    <button id="btnTheme" class="btn">🌙 Dark</button>
+  </div>
+  <div class="muted">Connect, auto-scan GATT, subscribe/poll, and see detailed errors.</div>
+  <br>
+
+  <div class="grid">
+    <div class="card span12">
+      <div class="row">
+        <div id="status">Status: Idle</div>
+        <span class="pill" id="devName">Device: —</span>
+        <span class="pill" id="devId">ID: —</span>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="btnConnect" class="btn btn-primary">Connect</button>
+        <button id="btnReconnect" class="btn" disabled>Reconnect</button>
+        <button id="btnDisconnect" class="btn" disabled>Disconnect</button>
+        <button id="btnScan" class="btn" disabled>Re-scan GATT</button>
+        <button id="btnProbe" class="btn" disabled>Probe configured UUIDs</button>
+        <button id="btnClearLog" class="btn">Clear Log</button>
+        <button id="btnDownloadLog" class="btn">Download Log (CSV)</button>
+      </div>
+
+      <div class="grid" style="margin-top:12px;">
+        <div class="span6">
+          <label>Service UUID (primary)</label>
+          <input id="uuidService" type="text" value="12345678-1234-5678-1234-56789abcdef0">
+        </div>
+        <div class="span6">
+          <label>Extra Service UUIDs (comma-separated, optional)</label>
+          <input id="uuidExtra" type="text" placeholder="e.g. 180f, 12345678-...">
+        </div>
+        <div class="span6">
+          <label>Mode / State (R/W/N) — “Normal/Turbo/Off”</label>
+          <input id="uuidState" type="text" value="12345678-1234-5678-1234-56789abcdef0">
+        </div>
+        <div class="span6">
+          <label>Battery Voltage (R/N)</label>
+          <input id="uuidVolt" type="text" value="87654321-1234-5678-1234-56789abcdef0">
+        </div>
+        <div class="span6">
+          <label>Battery % (R/N)</label>
+          <input id="uuidPct" type="text" value="abcdef01-1234-5678-1234-56789abcdef0">
+        </div>
+        <div class="span6">
+          <label>Charging Status (R/N)</label>
+          <input id="uuidCharge" type="text" value="abcdef12-3456-7890-abcd-ef1234567890">
+        </div>
+        <div class="span6">
+          <label>Speeds/Counts (Read-only → polled)</label>
+          <input id="uuidSpeeds" type="text" value="a7654321-4321-6789-4321-abcdef012345">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label class="row"><input id="asText" type="checkbox" checked> Show values as text when possible</label>
+        <label class="row"><input id="autoStart" type="checkbox" checked> Auto-subscribe/auto-poll on connect</label>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div class="seg" id="modeSeg">
+          <button data-mode="eco">Off</button>
+          <button data-mode="normal" class="active">Normal</button>
+          <button data-mode="turbo">Turbo</button>
+        </div>
+        <button id="btnStartStream" class="btn" disabled>Start (Normal)</button>
+        <button id="btnStopStream" class="btn" disabled>Stop (Off)</button>
+      </div>
+    </div>
+
+    <div class="card span6">
+      <h3>Live Data</h3>
+      <div class="kv">
+        <div>Voltage</div><div class="valueBox" id="valVolt">—</div>
+        <div>Battery %</div><div class="valueBox" id="valPct">—</div>
+        <div>Charging</div><div class="valueBox" id="valCharge">—</div>
+        <div>State</div><div class="valueBox" id="valState">—</div>
+        <div>Speeds</div><div class="valueBox" id="valSpeeds">—</div>
+      </div>
+      <div class="small" style="margin-top:8px;">Tip: If values are hex only, your firmware likely sends bytes; toggle “Show values as text”.</div>
+    </div>
+
+    <div class="card span6">
+      <h3>Diagnostics</h3>
+      <div id="diagSummary" class="small">No diagnostics yet.</div>
+
+      <h4 style="margin-top:10px;">Configured Mapping</h4>
+      <table id="cfgTable">
+        <thead><tr><th>Label</th><th>UUID</th><th>Found In Service</th><th>Props</th><th>Last Value</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <h4 style="margin-top:14px;">Primary Services</h4>
+      <table id="svcTable">
+        <thead><tr><th>#</th><th>UUID</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <h4 style="margin-top:14px;">Characteristics (service → chars)</h4>
+      <table id="charTable">
+        <thead><tr><th>Service</th><th>Characteristic</th><th>Props</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card span12">
+      <h3>Log</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let device, server, service;
+let reconnecting = false;
+let reconnectBackoffMs = 500;
+let wakeLock = null;
+const pollTimers = new Map();
+const charCache  = new Map();
+const valueCache = new Map();
+
+// optional: auto-reconnect toggle (true by default)
+const AUTO_RECONNECT = true;
+
+const $ = s => document.querySelector(s);
+const logEl = $('#log');
+const td = new TextDecoder();
+const te = new TextEncoder();
+function log(msg, level='info') {
+  const stamp = new Date().toLocaleTimeString();
+  const line = `[${stamp}] ${msg}`;
+  logEl.textContent += line + "";
+  logEl.scrollTop = logEl.scrollHeight;
+  console[level === 'error' ? 'error' : (level==='warn' ? 'warn' : 'log')](line);
+}
+function setStatus(txt, cls='') { $('#status').textContent = `Status: ${txt}`; $('#status').className = cls; }
+function setKv(id, text) { $(id).textContent = text; }
+function sanitizeUuid(u) { return (u || '').trim().toLowerCase(); }
+function uiEnable(connected) {
+  $('#btnConnect').disabled   = connected;
+  $('#btnDisconnect').disabled= !connected;
+  $('#btnReconnect').disabled = !device;
+  $('#btnScan').disabled      = !connected;
+  $('#btnProbe').disabled     = !connected;
+  $('#btnStartStream').disabled = !connected;
+  $('#btnStopStream').disabled  = !connected;
+}
+function clearTables() {
+  $('#svcTable tbody').innerHTML = '';
+  $('#charTable tbody').innerHTML = '';
+  $('#cfgTable tbody').innerHTML  = '';
+}
+function addSvcRow(idx, uuid) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${idx}</td><td><code>${uuid}</code></td>`;
+  $('#svcTable tbody').appendChild(tr);
+}
+function addCharRow(svc, chr, props) {
+  const tr = document.createElement('tr');
+  const propsHtml = Object.entries(props).filter(([k,v])=>v).map(([k])=>`<span class="pill">${k}</span>`).join(' ') || '<span class="pill">—</span>';
+  tr.innerHTML = `<td><code>${svc}</code></td><td><code>${chr}</code></td><td>${propsHtml}</td>`;
+  $('#charTable tbody').appendChild(tr);
+}
+function showDiagSummary(messages) {
+  $('#diagSummary').innerHTML = messages.map(m => {
+    const cls = m.type==='error' ? 'err' : (m.type==='warn' ? 'warn':'ok');
+    return `<div class="${cls}">• ${m.text}</div>`;
+  }).join('');
+}
+function refreshConfiguredTable() {
+  const rows = [];
+  const cfg = [
+    {label:'Mode / State',  id:'uuidState'},
+    {label:'Battery Voltage', id:'uuidVolt'},
+    {label:'Battery %',     id:'uuidPct'},
+    {label:'Charging Status',id:'uuidCharge'},
+    {label:'Speeds / Counts',id:'uuidSpeeds'},
+  ];
+  cfg.forEach(({label,id})=>{
+    const u = sanitizeUuid($('#'+id).value);
+    if (!u) return;
+    const cache = charCache.get(u);
+    const svc = cache?.serviceUUID || '—';
+    const props = cache?.ch?.properties || {};
+    const propsTxt = Object.keys(props).filter(k=>props[k]).join(', ') || '—';
+    const last = valueCache.get(u) ?? '—';
+    rows.push(`<tr><td>${label}</td><td><code>${u}</code></td><td><code>${svc}</code></td><td>${propsTxt}</td><td>${last}</td></tr>`);
+  });
+  $('#cfgTable tbody').innerHTML = rows.join('');
+}
+function toHMS(s) {
+  const t = Math.max(0, parseInt(s || 0, 10));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  return `${h}h:${String(m).padStart(2,'0')}m:${String(sec).padStart(2,'0')}s`;
+}
+const prettify = {
+  voltage: (v) => {
+    const s = String(v).trim();
+    const num = parseFloat(s.replace(/[^\d.]/g,''));
+    if (!isNaN(num)) return `${num.toFixed(2)}v`;
+    return s || '—';
+  },
+  percent: (v) => {
+    const s = String(v).trim();
+    const num = parseFloat(s.replace(/[^\d.]/g,''));
+    if (!isNaN(num)) return `${Math.round(num)}%`;
+    return s || '—';
+  },
+  charging: (v) => {
+    const s = String(v).trim().toLowerCase();
+    if (!s) return '—';
+    if (s.includes('not')) return 'Not Charging';
+    if (s.includes('charg')) return 'Charging';
+    return String(v);
+  }
+};
+function parseValue(dv) {
+  if (!dv) return '—';
+  const bytes = new Uint8Array(dv.buffer);
+  if ($('#asText').checked) {
+    try {
+      const str = td.decode(bytes);
+      if (/[ -~]/.test(str) && str.trim().length) return str;
+    } catch {}
+  }
+  return '0x ' + Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+}
+async function connectFlow(reuse=false) {
+  try {
+    const svcUUID = sanitizeUuid($('#uuidService').value);
+    const extra = $('#uuidExtra') ? $('#uuidExtra').value.split(',').map(s=>sanitizeUuid(s)).filter(Boolean) : [];
+    if (!navigator.bluetooth) { setStatus('Web Bluetooth not supported', 'err'); log('Web Bluetooth not supported', 'error'); return; }
+    if (!svcUUID) { setStatus('Enter Service UUID', 'warn'); log('Please provide a primary Service UUID.', 'warn'); return; }
+
+    setStatus(reuse ? 'Reconnecting…' : 'Requesting device…');
+    if (!reuse) {
+      device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [svcUUID, ...extra] });
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+      $('#devName').textContent = 'Device: ' + (device.name || 'Unknown');
+      $('#devId').textContent   = 'ID: ' + (device.id || '—');
+    }
+
+    await ensureConnected();                   // <— use wrapper
+    service = await server.getPrimaryService(svcUUID);
+
+    // keep screen awake on mobile to avoid BT suspension
+    if ('wakeLock' in navigator && !wakeLock) {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener?.('release', ()=>{ wakeLock = null; });
+        log('Wake lock acquired');
+      } catch (e) { log(`Wake lock failed: ${e.message}`, 'warn'); }
+    }
+
+    uiEnable(true);
+    setStatus('Connected');
+    log(`Connected to ${device.name || 'device'} (${device.id || 'no-id'})`);
+
+    if ($('#autoStart')?.checked) {
+      await scanGatt();
+      await startDataFlows();
+    }
+  } catch (e) {
+    handleError('connectFlow', e);
+  }
+}
+
+async function ensureConnected() {
+  if (!device) throw new Error('No device selected');
+  // Already connected?
+  if (device.gatt?.connected) return device.gatt;
+
+  setStatus('Reconnecting…');
+  try {
+    const g = await device.gatt.connect();
+    server = g;
+    setStatus('Connected');
+    log('Reconnected to GATT');
+    return g;
+  } catch (e) {
+    handleError('ensureConnected', e);
+    throw e;
+  }
+}
+
+async function tryReconnect() {
+  if (!AUTO_RECONNECT || reconnecting || !device) return;
+  reconnecting = true;
+  reconnectBackoffMs = 500;
+  while (device && !device.gatt.connected) {
+    try {
+      await device.gatt.connect();
+      server = device.gatt;
+      log('Auto-reconnect succeeded');
+      reconnecting = false;
+      // Re-scan and restart flows after reconnect
+      charCache.clear();
+      for (const [,iid] of pollTimers) clearInterval(iid);
+      pollTimers.clear();
+      await scanGatt();
+      await startDataFlows();
+      return;
+    } catch (e) {
+      log(`Reconnect failed: ${e.message} — retrying in ${reconnectBackoffMs}ms`, 'warn');
+      await new Promise(r => setTimeout(r, reconnectBackoffMs));
+      reconnectBackoffMs = Math.min(reconnectBackoffMs * 2, 8000);
+    }
+  }
+  reconnecting = false;
+}
+
+async function scanGatt() {
+  clearTables();
+  charCache.clear();
+  const diag = [];
+  try {
+    setStatus('Scanning GATT…');
+    const g = await ensureConnected();                     // <—
+    const services = await g.getPrimaryServices();
+    services.forEach((s, i) => addSvcRow(i+1, s.uuid));
+    diag.push({type:'ok', text:`Found ${services.length} primary service(s).`});
+    for (const s of services) {
+      try {
+        const chs = await s.getCharacteristics();
+        for (const c of chs) {
+          addCharRow(s.uuid, c.uuid, c.properties || {});
+          charCache.set(c.uuid.toLowerCase(), { ch: c, serviceUUID: s.uuid });
+        }
+      } catch (e) {
+        handleError('getCharacteristics', e, {silent:true});
+        diag.push({type:'warn', text:`Could not list characteristics for service ${s.uuid}: ${e.message}`});
+      }
+    }
+  } catch (e) {
+    handleError('scanGatt', e);
+    diag.push({type:'error', text:`GATT scan failed: ${e.message}`});
+  } finally {
+    showDiagSummary(diag);
+    refreshConfiguredTable?.();
+    setStatus('Connected (GATT scanned)');
+  }
+}
+async function getCharacteristic(uuid) {
+  const id = sanitizeUuid(uuid);
+  if (!id) throw new Error('Empty UUID');
+
+  const cached = charCache.get(id);
+  if (cached?.ch) return cached.ch;
+
+  const g = await ensureConnected();                        // <—
+  try {
+    const ch = await service.getCharacteristic(id);
+    charCache.set(id, { ch, serviceUUID: service.uuid });
+    return ch;
+  } catch (_) { /* try all services */ }
+
+  const services = await g.getPrimaryServices();            // <—
+  for (const s of services) {
+    try {
+      const ch = await s.getCharacteristic(id);
+      charCache.set(id, { ch, serviceUUID: s.uuid });
+      log(`Resolved ${id} under service ${s.uuid}`);
+      refreshConfiguredTable?.();
+      return ch;
+    } catch (_) {}
+  }
+  throw new Error(`Characteristic ${id} not found under allowed services. Add its service UUID to “Extra Service UUIDs”.`);
+}
+function rememberValue(uuid, value) {
+  const id = sanitizeUuid(uuid);
+  valueCache.set(id, value);
+  refreshConfiguredTable();
+}
+async function subscribe(uuid, onValue) {
+  const id = sanitizeUuid(uuid);
+  await ensureConnected(); 
+  const ch = await getCharacteristic(id);
+  const props = ch.properties || {};
+  try {
+    const v = await ch.readValue();
+    const parsed = parseValue(v);
+    rememberValue(id, parsed);
+    onValue(parsed);
+  } catch (e) {
+    handleError(`initialRead(${id})`, e, {silent:true});
+  }
+  if (props.notify || props.indicate) {
+    try {
+      ch.addEventListener('characteristicvaluechanged', ev => {
+        try {
+          const parsed = parseValue(ev.target.value);
+          rememberValue(id, parsed);
+          onValue(parsed);
+        } catch (e) { handleError(`onValue(${id})`, e); }
+      });
+      await ch.startNotifications();
+      log(`Notifications started on ${id}`);
+      return {subscribed:true, ch};
+    } catch (e) {
+      handleError(`startNotifications(${id})`, e, {silent:true});
+    }
+  }
+  log(`Falling back to polling on ${id}`, 'warn');
+  await poll(id, onValue, 2000);
+  return {subscribed:false};
+}
+async function poll(uuid, onValue, ms=2000) {
+  const id = sanitizeUuid(uuid);
+  const acquire = async () => {
+    await ensureConnected();
+    return await getCharacteristic(id);
+  };
+  let ch = await acquire();
+
+  // clear any previous poll for this uuid
+  if (pollTimers.has(id)) { clearInterval(pollTimers.get(id)); pollTimers.delete(id); }
+
+  const tick = async () => {
+    try {
+      const v = await ch.readValue();
+      const parsed = parseValue(v);
+      rememberValue(id, parsed);
+      onValue(parsed);
+    } catch (e) {
+      log(`poll.read(${id}) failed: ${e.message} — trying to reconnect`, 'warn');
+      try {
+        await ensureConnected();
+        ch = await acquire();
+      } catch (e2) {
+        handleError(`poll.reconnect(${id})`, e2);
+      }
+    }
+  };
+  await tick();
+  const iid = setInterval(tick, ms);
+  pollTimers.set(id, iid);
+  log(`Polling ${id} every ${ms}ms`);
+}
+async function startDataFlows() {
+  const uu = {
+    state:  $('#uuidState').value,
+    volt:   $('#uuidVolt').value,
+    pct:    $('#uuidPct').value,
+    charge: $('#uuidCharge').value,
+    speeds: $('#uuidSpeeds').value,
+  };
+  if (uu.volt)  await subscribe(uu.volt,   v => setKv('#valVolt',  prettify.voltage(v)));
+  if (uu.pct)   await subscribe(uu.pct,    v => setKv('#valPct',   prettify.percent(v)));
+  if (uu.charge)await subscribe(uu.charge, v => setKv('#valCharge',prettify.charging(v)));
+  if (uu.state) await subscribe(uu.state,  v => setKv('#valState', String(v).trim()));
+  if (uu.speeds) {
+    await poll(uu.speeds, raw => {
+      const txt = String(raw);
+      const parts = {};
+      txt.split(',').map(x => x.trim()).forEach(x => {
+        if (!x) return;
+        const idx = x.indexOf(':'); if (idx === -1) return;
+        const key = x.slice(0, idx).trim();
+        const val = x.slice(idx+1).trim().replace(/[^\d]/g,'');
+        parts[key] = val || '0';
+      });
+      const pretty = [
+        `Off: ${toHMS(parts.Off)}`,
+        `Slow: ${toHMS(parts.Slow)}`,
+        `Fast: ${toHMS(parts.Fast)}`
+      ].join(', ');
+      rememberValue(uu.speeds, pretty);
+      setKv('#valSpeeds', pretty);
+    }, 2000);
+  }
+  refreshConfiguredTable();
+}
+async function writeControl(bytes) {
+  const id = sanitizeUuid($('#uuidState').value);
+  if (!id) { log('No Mode/State UUID set.', 'warn'); return; }
+  try {
+    const ch = await getCharacteristic(id);
+    if (!(ch.properties.write || ch.properties.writeWithoutResponse)) {
+      log(`Write not supported on ${id}`, 'warn'); return;
+    }
+    await ch.writeValue(bytes);
+    log(`Wrote ${Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join(' ')} to ${id}`);
+  } catch (e) {
+    handleError(`writeControl(${id})`, e);
+  }
+}
+function onDisconnected() {
+  uiEnable(false);
+  setStatus('Disconnected');
+  for (const [,iid] of pollTimers) clearInterval(iid);
+  pollTimers.clear();
+  log('Device disconnected');
+  if (AUTO_RECONNECT) tryReconnect();    // <—
+}
+async function disconnect() {
+  try { if (device && device.gatt?.connected) device.gatt.disconnect(); }
+  catch (e) { handleError('disconnect', e); }
+  finally { onDisconnected(); }
+}
+function handleError(where, e, opts={}) {
+  const name = e?.name || 'Error';
+  const msg  = e?.message || String(e);
+  const hint = hintForError(name, msg);
+  if (!opts.silent) {
+    log(`${where}: ${name}: ${msg}`, 'error');
+    if (hint) log(`Hint: ${hint}`, 'warn');
+    setStatus(`${name}: ${msg}`, 'err');
+  }
+}
+function hintForError(name, msg) {
+  const m = (msg||'').toLowerCase();
+  if (m.includes('invalid service')) return 'UUID must be lowercase 128-bit or a standard alias (e.g. 0x180f).';
+  if (m.includes('not found under allowed services')) return 'Add the service UUID that owns this characteristic to “Extra Service UUIDs” and reconnect.';
+  if (m.includes('no services matching')) return 'Service not found on device. Check UUID and device mode. Include it in optionalServices.';
+  if (m.includes('not supported') && m.includes('gatt')) return 'Characteristic likely lacks Notify/Indicate. We’ll poll as fallback.';
+  if (m.includes('security') || m.includes('not authorized') || m.includes('insufficient')) return 'Needs pairing/encryption. Try a read to trigger pairing, or forget & reconnect.';
+  if (m.includes('disconnected')) return 'Device disconnected. Power cycle device or move closer.';
+  return '';
+}
+$('#btnConnect').onclick   = () => connectFlow(false);
+$('#btnReconnect').onclick = () => connectFlow(true);
+$('#btnDisconnect').onclick= () => disconnect();
+$('#btnScan').onclick      = () => scanGatt();
+$('#btnClearLog').onclick  = () => { $('#log').textContent = ''; };
+$('#btnProbe').onclick     = async () => {
+  const check = async (label, u) => {
+    const id = sanitizeUuid(u);
+    if (!id) { log(`Probe: ${label}: (empty UUID)`, 'warn'); return; }
+    try {
+      const ch = await getCharacteristic(id);
+      const cache = charCache.get(id);
+      const svc = cache?.serviceUUID || 'unknown';
+      const p = ch.properties || {};
+      log(`Probe: ${label} → FOUND in service ${svc} (props: ${Object.keys(p).filter(k=>p[k]).join(', ')||'-'})`);
+    } catch (e) {
+      log(`Probe: ${label} → NOT FOUND (${id})`, 'error');
+    }
+  };
+  await check('Mode/State',  $('#uuidState').value);
+  await check('Voltage',     $('#uuidVolt').value);
+  await check('Battery %',   $('#uuidPct').value);
+  await check('Charging',    $('#uuidCharge').value);
+  await check('Speeds',      $('#uuidSpeeds').value);
+  refreshConfiguredTable();
+};
+const root = document.documentElement;
+$('#btnTheme').onclick = () => {
+  if (root.getAttribute('data-theme') === 'dark') {
+    root.removeAttribute('data-theme'); $('#btnTheme').textContent = '🌙 Dark';
+  } else {
+    root.setAttribute('data-theme','dark'); $('#btnTheme').textContent = '☀️ Light';
+  }
+};
+$('#btnDownloadLog').onclick = () => {
+  const lines = logEl.textContent.trim().split('');
+  const rows = lines.map(l=>{
+    const m = l.match(/^\[([^\]]+)\]\s*(.*)$/);
+    if (!m) return [ '', l ];
+    return [ m[1], m[2] ];
+  });
+  const csv = 'timestamp,message' + rows.map(([t,m])=>`"${(t||'').replace(/"/g,'""')}","${(m||'').replace(/"/g,'""')}"`).join('');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'atovio-ble-log.csv'; a.click();
+  URL.revokeObjectURL(url);
+};
+document.querySelectorAll('#modeSeg button').forEach(btn=>{
+  btn.onclick = async () => {
+    document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    const map = { eco: 'o', normal: 'n', turbo: 't' };
+    const s = map[mode] || 'n';
+    await writeControl(te.encode(s));
+  };
+});
+$('#btnStartStream').onclick = async () => { await writeControl(te.encode('n')); };
+$('#btnStopStream').onclick  = async () => { await writeControl(te.encode('o')); };
+// Init UI state
+uiEnable(false);
+</script>
+<script>
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('service-worker.js').catch(function(err) {
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
