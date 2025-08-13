@@ -159,9 +159,16 @@
 
 <script>
 let device, server, service;
+let reconnecting = false;
+let reconnectBackoffMs = 500;
+let wakeLock = null;
 const pollTimers = new Map();
 const charCache  = new Map();
 const valueCache = new Map();
+
+// optional: auto-reconnect toggle (true by default)
+const AUTO_RECONNECT = true;
+
 const $ = s => document.querySelector(s);
 const logEl = $('#log');
 const td = new TextDecoder();
@@ -270,25 +277,35 @@ function parseValue(dv) {
 async function connectFlow(reuse=false) {
   try {
     const svcUUID = sanitizeUuid($('#uuidService').value);
-    const extra = $('#uuidExtra').value.split(',').map(s=>sanitizeUuid(s)).filter(Boolean);
+    const extra = $('#uuidExtra') ? $('#uuidExtra').value.split(',').map(s=>sanitizeUuid(s)).filter(Boolean) : [];
     if (!navigator.bluetooth) { setStatus('Web Bluetooth not supported', 'err'); log('Web Bluetooth not supported', 'error'); return; }
     if (!svcUUID) { setStatus('Enter Service UUID', 'warn'); log('Please provide a primary Service UUID.', 'warn'); return; }
+
     setStatus(reuse ? 'Reconnecting…' : 'Requesting device…');
     if (!reuse) {
-      const opts = { acceptAllDevices: true, optionalServices: [svcUUID, ...extra] };
-      device = await navigator.bluetooth.requestDevice(opts);
+      device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [svcUUID, ...extra] });
       device.addEventListener('gattserverdisconnected', onDisconnected);
       $('#devName').textContent = 'Device: ' + (device.name || 'Unknown');
       $('#devId').textContent   = 'ID: ' + (device.id || '—');
     }
-    setStatus('Connecting…');
-    server = await device.gatt.connect();
-    setStatus('Getting primary service…');
+
+    await ensureConnected();                   // <— use wrapper
     service = await server.getPrimaryService(svcUUID);
+
+    // keep screen awake on mobile to avoid BT suspension
+    if ('wakeLock' in navigator && !wakeLock) {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener?.('release', ()=>{ wakeLock = null; });
+        log('Wake lock acquired');
+      } catch (e) { log(`Wake lock failed: ${e.message}`, 'warn'); }
+    }
+
     uiEnable(true);
     setStatus('Connected');
     log(`Connected to ${device.name || 'device'} (${device.id || 'no-id'})`);
-    if ($('#autoStart').checked) {
+
+    if ($('#autoStart')?.checked) {
       await scanGatt();
       await startDataFlows();
     }
@@ -296,21 +313,66 @@ async function connectFlow(reuse=false) {
     handleError('connectFlow', e);
   }
 }
+
+async function ensureConnected() {
+  if (!device) throw new Error('No device selected');
+  // Already connected?
+  if (device.gatt?.connected) return device.gatt;
+
+  setStatus('Reconnecting…');
+  try {
+    const g = await device.gatt.connect();
+    server = g;
+    setStatus('Connected');
+    log('Reconnected to GATT');
+    return g;
+  } catch (e) {
+    handleError('ensureConnected', e);
+    throw e;
+  }
+}
+
+async function tryReconnect() {
+  if (!AUTO_RECONNECT || reconnecting || !device) return;
+  reconnecting = true;
+  reconnectBackoffMs = 500;
+  while (device && !device.gatt.connected) {
+    try {
+      await device.gatt.connect();
+      server = device.gatt;
+      log('Auto-reconnect succeeded');
+      reconnecting = false;
+      // Re-scan and restart flows after reconnect
+      charCache.clear();
+      for (const [,iid] of pollTimers) clearInterval(iid);
+      pollTimers.clear();
+      await scanGatt();
+      await startDataFlows();
+      return;
+    } catch (e) {
+      log(`Reconnect failed: ${e.message} — retrying in ${reconnectBackoffMs}ms`, 'warn');
+      await new Promise(r => setTimeout(r, reconnectBackoffMs));
+      reconnectBackoffMs = Math.min(reconnectBackoffMs * 2, 8000);
+    }
+  }
+  reconnecting = false;
+}
+
 async function scanGatt() {
   clearTables();
   charCache.clear();
   const diag = [];
   try {
     setStatus('Scanning GATT…');
-    const services = await server.getPrimaryServices();
+    const g = await ensureConnected();                     // <—
+    const services = await g.getPrimaryServices();
     services.forEach((s, i) => addSvcRow(i+1, s.uuid));
     diag.push({type:'ok', text:`Found ${services.length} primary service(s).`});
     for (const s of services) {
       try {
         const chs = await s.getCharacteristics();
         for (const c of chs) {
-          const p = c.properties || {};
-          addCharRow(s.uuid, c.uuid, p);
+          addCharRow(s.uuid, c.uuid, c.properties || {});
           charCache.set(c.uuid.toLowerCase(), { ch: c, serviceUUID: s.uuid });
         }
       } catch (e) {
@@ -323,35 +385,35 @@ async function scanGatt() {
     diag.push({type:'error', text:`GATT scan failed: ${e.message}`});
   } finally {
     showDiagSummary(diag);
-    refreshConfiguredTable();
+    refreshConfiguredTable?.();
     setStatus('Connected (GATT scanned)');
   }
 }
 async function getCharacteristic(uuid) {
   const id = sanitizeUuid(uuid);
   if (!id) throw new Error('Empty UUID');
+
   const cached = charCache.get(id);
   if (cached?.ch) return cached.ch;
+
+  const g = await ensureConnected();                        // <—
   try {
     const ch = await service.getCharacteristic(id);
     charCache.set(id, { ch, serviceUUID: service.uuid });
     return ch;
-  } catch (_) {}
-  try {
-    const services = await server.getPrimaryServices();
-    for (const s of services) {
-      try {
-        const ch = await s.getCharacteristic(id);
-        charCache.set(id, { ch, serviceUUID: s.uuid });
-        log(`Resolved ${id} under service ${s.uuid}`);
-        refreshConfiguredTable();
-        return ch;
-      } catch (_) {}
-    }
-  } catch (e) {
-    handleError('getCharacteristic.scan', e, {silent:true});
+  } catch (_) { /* try all services */ }
+
+  const services = await g.getPrimaryServices();            // <—
+  for (const s of services) {
+    try {
+      const ch = await s.getCharacteristic(id);
+      charCache.set(id, { ch, serviceUUID: s.uuid });
+      log(`Resolved ${id} under service ${s.uuid}`);
+      refreshConfiguredTable?.();
+      return ch;
+    } catch (_) {}
   }
-  throw new Error(`Characteristic ${id} not found under allowed services. If this lives in another service, include it in “Extra Service UUIDs”.`);
+  throw new Error(`Characteristic ${id} not found under allowed services. Add its service UUID to “Extra Service UUIDs”.`);
 }
 function rememberValue(uuid, value) {
   const id = sanitizeUuid(uuid);
@@ -360,6 +422,7 @@ function rememberValue(uuid, value) {
 }
 async function subscribe(uuid, onValue) {
   const id = sanitizeUuid(uuid);
+  await ensureConnected(); 
   const ch = await getCharacteristic(id);
   const props = ch.properties || {};
   try {
@@ -392,28 +455,35 @@ async function subscribe(uuid, onValue) {
 }
 async function poll(uuid, onValue, ms=2000) {
   const id = sanitizeUuid(uuid);
-  try {
-    const ch = await getCharacteristic(id);
-    if (pollTimers.has(id)) { clearInterval(pollTimers.get(id)); pollTimers.delete(id); }
-    const tick = async () => {
+  const acquire = async () => {
+    await ensureConnected();
+    return await getCharacteristic(id);
+  };
+  let ch = await acquire();
+
+  // clear any previous poll for this uuid
+  if (pollTimers.has(id)) { clearInterval(pollTimers.get(id)); pollTimers.delete(id); }
+
+  const tick = async () => {
+    try {
+      const v = await ch.readValue();
+      const parsed = parseValue(v);
+      rememberValue(id, parsed);
+      onValue(parsed);
+    } catch (e) {
+      log(`poll.read(${id}) failed: ${e.message} — trying to reconnect`, 'warn');
       try {
-        const v = await ch.readValue();
-        const parsed = parseValue(v);
-        rememberValue(id, parsed);
-        onValue(parsed);
-      } catch (e) {
-        handleError(`poll.read(${id})`, e);
-        clearInterval(pollTimers.get(id));
-        pollTimers.delete(id);
+        await ensureConnected();
+        ch = await acquire();
+      } catch (e2) {
+        handleError(`poll.reconnect(${id})`, e2);
       }
-    };
-    await tick();
-    const iid = setInterval(tick, ms);
-    pollTimers.set(id, iid);
-    log(`Polling ${id} every ${ms}ms`);
-  } catch (e) {
-    handleError(`poll.setup(${id})`, e);
-  }
+    }
+  };
+  await tick();
+  const iid = setInterval(tick, ms);
+  pollTimers.set(id, iid);
+  log(`Polling ${id} every ${ms}ms`);
 }
 async function startDataFlows() {
   const uu = {
@@ -469,6 +539,7 @@ function onDisconnected() {
   for (const [,iid] of pollTimers) clearInterval(iid);
   pollTimers.clear();
   log('Device disconnected');
+  if (AUTO_RECONNECT) tryReconnect();    // <—
 }
 async function disconnect() {
   try { if (device && device.gatt?.connected) device.gatt.disconnect(); }
