@@ -15,62 +15,39 @@
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{
-    margin:0; background:var(--bg); color:var(--fg);
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
-  }
+  body{ margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; }
   .app{max-width:560px; margin:0 auto; padding:16px 16px calc(env(safe-area-inset-bottom,0) + 16px);}
-  header{
-    display:flex; align-items:center; gap:12px; margin-bottom:12px;
-  }
+  header{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
   header img{ width:64px; height:64px; object-fit:cover; border-radius:14px; border:1px solid var(--line); background:#fff; }
   .title{ font-weight:700; font-size:18px; }
   .muted{ color:var(--muted); font-size:12px; }
-  .card{
-    background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px;
-  }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; }
   .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   .pill{ padding:4px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; background:var(--bg); }
   #status{ font-weight:600; }
-  .btn{
-    padding:12px 14px; border-radius:12px; border:1px solid var(--line);
-    background:var(--bg); color:var(--fg); font-weight:600; flex:1 1 auto;
-  }
+  .btn{ padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg); font-weight:600; flex:1 1 auto; }
   .btn:active{ transform:translateY(1px) }
   .btn-primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
   .btn:disabled{ opacity:.5 }
-  .grid{
-    display:grid; gap:10px; grid-template-columns:1fr 1fr;
-  }
+  .grid{ display:grid; gap:10px; grid-template-columns:1fr 1fr; }
   .kv{ display:grid; grid-template-columns: 1fr; gap:6px; }
   .label{ font-size:12px; color:var(--muted); }
-  .value{
-    font: 700 24px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;
-    padding:10px 12px; border:1px solid var(--line); background:var(--bg); border-radius:12px; min-height:44px;
-    display:flex; align-items:center; justify-content:flex-start;
-  }
+  .value{ font: 700 24px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace; padding:10px 12px; border:1px solid var(--line); background:var(--bg); border-radius:12px; min-height:44px; display:flex; align-items:center; }
   .toolbar{ display:flex; gap:10px; align-items:center; }
   .grow{ flex:1 1 auto; }
   .toggle{ padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--bg); }
-  details{
-    border:1px dashed var(--line); border-radius:12px; padding:10px; background:transparent;
-  }
+  .seg{ display:inline-flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .seg button{ border:0; padding:10px 14px; background:transparent; color:var(--fg); font-weight:700; }
+  .seg button.active{ background:var(--accent); color:#fff; }
+  details{ border:1px dashed var(--line); border-radius:12px; padding:10px; background:transparent; }
   details summary{ cursor:pointer; font-weight:600; }
-  #log{
-    margin-top:8px; font:12px/1.5 ui-monospace,monospace; white-space:pre-wrap;
-    max-height:160px; overflow:auto; background:#0f172a; color:#e5e7eb; padding:10px; border-radius:10px;
-  }
-
-  @media (max-width:380px){
-    .grid{ grid-template-columns:1fr; }
-    header img{ width:56px; height:56px; }
-  }
+  #log{ margin-top:8px; font:12px/1.5 ui-monospace,monospace; white-space:pre-wrap; max-height:160px; overflow:auto; background:#0f172a; color:#e5e7eb; padding:10px; border-radius:10px; }
+  @media (max-width:380px){ .grid{ grid-template-columns:1fr; } header img{ width:56px; height:56px; } }
 </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <!-- Set your real product image URL below in JS; this SVG is a placeholder -->
     <img id="productImg" alt="Atovio Air Purifier" />
     <div>
       <div class="title">Atovio Air Purifier</div>
@@ -95,13 +72,35 @@
     </div>
   </div>
 
+  <!-- Mode control -->
+  <div class="card">
+    <div class="label" style="margin-bottom:6px;">Mode</div>
+    <div class="seg" id="modeSeg">
+      <button data-mode="off">Off</button>
+      <button data-mode="normal" class="active">Normal</button>
+      <button data-mode="turbo">Turbo</button>
+    </div>
+  </div>
+
+  <!-- Live data -->
   <div class="card">
     <div class="grid">
       <div class="kv"><div class="label">Voltage</div><div class="value" id="valVolt">—</div></div>
       <div class="kv"><div class="label">Battery %</div><div class="value" id="valPct">—</div></div>
       <div class="kv"><div class="label">Charging</div><div class="value" id="valCharge">—</div></div>
       <div class="kv"><div class="label">State</div><div class="value" id="valState">—</div></div>
-      <div class="kv" style="grid-column:1 / -1;"><div class="label">Speeds</div><div class="value" id="valSpeeds">—</div></div>
+    </div>
+  </div>
+
+  <!-- Friendly usage view (computed from Speeds counters) -->
+  <div class="card">
+    <div class="kv" style="grid-column:1 / -1;">
+      <div class="label">You used the device today for</div>
+      <div class="value" id="valUseToday">—</div>
+    </div>
+    <div class="grid" style="margin-top:8px;">
+      <div class="kv"><div class="label">Total time at Normal</div><div class="value" id="valUseNormal">—</div></div>
+      <div class="kv"><div class="label">Total time at Turbo</div><div class="value" id="valUseTurbo">—</div></div>
     </div>
   </div>
 
@@ -112,39 +111,31 @@
 </div>
 
 <script>
-/* =========================
-   MOBILE CUSTOMER APP BUILD
-   ========================= */
-
-// <<< EDIT THIS if your brand image is hosted somewhere >>>
-const PRODUCT_IMAGE_URL = "https://cdn.shopify.com/s/files/1/0890/2541/3435/files/Pebble.jpg?v=1755074391"; // e.g. "https://yourcdn.com/atovio/purifier.png"
-
-// Known UUIDs for your device (customer build = no inputs)
+/* ======== Config ======== */
+// Set your real product image URL (HTTPS) or leave blank for the placeholder SVG
+const PRODUCT_IMAGE_URL = "";
+// Device UUIDs
 const PRIMARY_SERVICE = "12345678-1234-5678-1234-56789abcdef0";
 const UUIDS = {
-  state:  "12345678-1234-5678-1234-56789abcdef0", // text: "Normal"/"Turbo"/"Off" (write 'n'/'t'/'o' if you expose controls later)
-  volt:   "87654321-1234-5678-1234-56789abcdef0", // text: "3.93V"
-  pct:    "abcdef01-1234-5678-1234-56789abcdef0", // text: "69%"
-  charge: "abcdef12-3456-7890-abcd-ef1234567890", // text: "Charging"/"Not Charging"
-  speeds: "a7654321-4321-6789-4321-abcdef012345"  // read-only: "Off: 236834, Slow: 75062, Fast: 0"
+  state:  "12345678-1234-5678-1234-56789abcdef0", // Mode/State: text + write
+  volt:   "87654321-1234-5678-1234-56789abcdef0",
+  pct:    "abcdef01-1234-5678-1234-56789abcdef0",
+  charge: "abcdef12-3456-7890-abcd-ef1234567890",
+  speeds: "a7654321-4321-6789-4321-abcdef012345"  // "Off: <s>, Slow: <s>, Fast: <s>"
 };
 
-// State
+/* ======== State ======== */
 let device, server, service;
 let reconnecting = false, reconnectBackoffMs = 500;
 let wakeLock = null;
-
-// Caches
 const charCache  = new Map(); // uuid -> { ch, serviceUUID }
-const valueCache = new Map(); // uuid -> last value
 const pollTimers = new Map(); // uuid -> interval id
-
-// DOM
-const $ = s => document.querySelector(s);
-const logEl = $('#log');
+const valueCache = new Map(); // uuid -> last string (for display)
 const td = new TextDecoder();
 
-// UI helpers
+/* ======== DOM helpers ======== */
+const $ = s => document.querySelector(s);
+const logEl = $('#log');
 function log(msg, level='info'){
   const stamp = new Date().toLocaleTimeString();
   const line = `[${stamp}] ${msg}`;
@@ -155,56 +146,37 @@ function log(msg, level='info'){
 function setStatus(txt, cls=''){ $('#status').textContent = `Status: ${txt}`; $('#status').className = cls; }
 function setKv(id, text){ $(id).textContent = text; }
 function sanitizeUuid(u){ return (u||'').trim().toLowerCase(); }
-
 function uiEnable(connected){
   $('#btnConnect').disabled    = connected;
   $('#btnDisconnect').disabled = !connected;
   $('#btnReconnect').disabled  = !device;
   $('#btnScan').disabled       = !connected;
 }
+function rememberValue(uuid, value){ valueCache.set(sanitizeUuid(uuid), value); }
 
-function rememberValue(uuid, value){
-  valueCache.set(sanitizeUuid(uuid), value);
-}
-
-// Pretty print helpers
-function toHMS(s){
-  const t = Math.max(0, parseInt(s||0,10));
-  const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), sec = t%60;
-  return `${h}h:${String(m).padStart(2,'0')}m:${String(sec).padStart(2,'0')}s`;
+/* ======== Format helpers ======== */
+function toHMSFull(t){
+  t = Math.max(0, parseInt(t||0,10));
+  const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+  const parts = [];
+  if (h) parts.push(`${h}h`);
+  if (m || h) parts.push(`${m}m`);
+  parts.push(`${s}s`);
+  return parts.join(' ');
 }
 const prettify = {
-  voltage: v => {
-    const s = String(v).trim();
-    const num = parseFloat(s.replace(/[^\d.]/g,''));
-    if (!isNaN(num)) return `${num.toFixed(2)}v`;
-    return s || '—';
-  },
-  percent: v => {
-    const s = String(v).trim();
-    const num = parseFloat(s.replace(/[^\d.]/g,''));
-    if (!isNaN(num)) return `${Math.round(num)}%`;
-    return s || '—';
-  },
-  charging: v => {
-    const s = String(v).trim().toLowerCase();
-    if (!s) return '—';
-    if (s.includes('not')) return 'Not Charging';
-    if (s.includes('charg')) return 'Charging';
-    return String(v);
-  }
+  voltage: v => { const s=String(v).trim(); const num=parseFloat(s.replace(/[^\d.]/g,'')); return isNaN(num)?(s||'—'):`${num.toFixed(2)}v`; },
+  percent: v => { const s=String(v).trim(); const num=parseFloat(s.replace(/[^\d.]/g,'')); return isNaN(num)?(s||'—'):`${Math.round(num)}%`; },
+  charging: v => { const s=String(v).trim().toLowerCase(); if(!s) return '—'; if(s.includes('not')) return 'Not Charging'; if(s.includes('charg')) return 'Charging'; return String(v); }
 };
 function parseValue(dv){
   if (!dv) return '—';
   const bytes = new Uint8Array(dv.buffer);
-  try{
-    const str = td.decode(bytes);
-    if (/[ -~]/.test(str) && str.trim().length) return str;
-  }catch{}
+  try{ const str = td.decode(bytes); if (/[ -~]/.test(str) && str.trim().length) return str; }catch{}
   return '0x ' + Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join(' ');
 }
 
-// Connectivity guards
+/* ======== Connect & resilience ======== */
 async function ensureConnected(){
   if (!device) throw new Error('No device selected');
   if (device.gatt?.connected) return device.gatt;
@@ -215,10 +187,7 @@ async function ensureConnected(){
     setStatus('Connected');
     log('Reconnected to GATT');
     return g;
-  }catch(e){
-    handleError('ensureConnected', e);
-    throw e;
-  }
+  }catch(e){ handleError('ensureConnected', e); throw e; }
 }
 async function tryReconnect(){
   if (reconnecting || !device) return;
@@ -229,12 +198,10 @@ async function tryReconnect(){
       server = device.gatt;
       log('Auto-reconnect succeeded');
       reconnecting = false;
-      // Reset flows
       charCache.clear();
       for (const [,iid] of pollTimers) clearInterval(iid);
       pollTimers.clear();
-      await scanGatt();
-      await startDataFlows();
+      await scanGatt(); await startDataFlows();
       return;
     }catch(e){
       log(`Reconnect failed: ${e.message} — retrying in ${reconnectBackoffMs}ms`, 'warn');
@@ -244,7 +211,6 @@ async function tryReconnect(){
   }
   reconnecting = false;
 }
-
 async function getCharacteristic(uuid){
   const id = sanitizeUuid(uuid);
   if (!id) throw new Error('Empty UUID');
@@ -252,91 +218,56 @@ async function getCharacteristic(uuid){
   if (cached?.ch) return cached.ch;
 
   const g = await ensureConnected();
-  // Try primary service first
   if (service){
-    try{
-      const ch = await service.getCharacteristic(id);
-      charCache.set(id, {ch, serviceUUID: service.uuid});
-      return ch;
-    }catch(_){}
+    try{ const ch = await service.getCharacteristic(id); charCache.set(id,{ch,serviceUUID:service.uuid}); return ch; }catch(_){}
   }
-  // Search all allowed services
   const services = await g.getPrimaryServices();
   for (const s of services){
-    try{
-      const ch = await s.getCharacteristic(id);
-      charCache.set(id, {ch, serviceUUID: s.uuid});
-      return ch;
-    }catch(_){}
+    try{ const ch = await s.getCharacteristic(id); charCache.set(id,{ch,serviceUUID:s.uuid}); return ch; }catch(_){}
   }
   throw new Error(`Characteristic ${id} not found under allowed services.`);
 }
-
 async function scanGatt(){
   try{
     setStatus('Scanning…');
     const g = await ensureConnected();
-    // getPrimaryService ensures primary exists; store handle for fast path
     service = await g.getPrimaryService(PRIMARY_SERVICE);
-    // Warm up cache by touching characteristics we care about
-    for (const id of Object.values(UUIDS)){
-      try{ await getCharacteristic(id); }catch(_){}
-    }
+    // warm cache for the ones we need
+    for (const id of Object.values(UUIDS)){ try{ await getCharacteristic(id); }catch(_){ } }
     setStatus('Connected (ready)');
-  }catch(e){
-    handleError('scanGatt', e);
-  }
+  }catch(e){ handleError('scanGatt', e); }
 }
 
+/* ======== Subscribe / Poll ======== */
 async function subscribe(uuid, onValue){
   const id = sanitizeUuid(uuid);
   await ensureConnected();
   const ch = await getCharacteristic(id);
   const props = ch.properties || {};
 
-  // Initial read (also triggers pairing)
-  try{
-    const v = await ch.readValue();
-    const parsed = parseValue(v);
-    rememberValue(id, parsed);
-    onValue(parsed);
-  }catch(e){
-    handleError(`initialRead(${id})`, e, {silent:true});
-  }
+  try{ const v = await ch.readValue(); const parsed = parseValue(v); rememberValue(id, parsed); onValue(parsed); }
+  catch(e){ handleError(`initialRead(${id})`, e, {silent:true}); }
 
   if (props.notify || props.indicate){
     try{
       ch.addEventListener('characteristicvaluechanged', ev=>{
-        try{
-          const parsed = parseValue(ev.target.value);
-          rememberValue(id, parsed);
-          onValue(parsed);
-        }catch(err){ handleError(`onValue(${id})`, err); }
+        try{ const parsed = parseValue(ev.target.value); rememberValue(id, parsed); onValue(parsed); }
+        catch(err){ handleError(`onValue(${id})`, err); }
       });
       await ch.startNotifications();
       log(`Notifications started on ${id}`);
       return {subscribed:true};
-    }catch(e){
-      handleError(`startNotifications(${id})`, e, {silent:true});
-    }
+    }catch(e){ handleError(`startNotifications(${id})`, e, {silent:true}); }
   }
-  // Fallback to polling
   log(`Falling back to polling on ${id}`, 'warn');
   await poll(id, onValue, 2000);
   return {subscribed:false};
 }
-
 async function poll(uuid, onValue, ms=2000){
   const id = sanitizeUuid(uuid);
-  const acquire = async () => {
-    await ensureConnected();
-    return await getCharacteristic(id);
-  };
+  const acquire = async () => { await ensureConnected(); return await getCharacteristic(id); };
   let ch = await acquire();
-
-  // Clear existing poll for this uuid
   if (pollTimers.has(id)){ clearInterval(pollTimers.get(id)); pollTimers.delete(id); }
-
   const tick = async () => {
     try{
       const v = await ch.readValue();
@@ -354,32 +285,97 @@ async function poll(uuid, onValue, ms=2000){
   log(`Polling ${id} every ${ms}ms`);
 }
 
+/* ======== Usage tracking (today) ======== */
+// We treat Speeds as cumulative counters since last device reset.
+// We keep a per-device, per-day baseline in localStorage to compute "today" deltas.
+function todayKeyForDevice(devId){
+  const d = new Date(); // local date (customer’s local time)
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `atovio_usage_baseline_${devId || 'unknown'}_${yyyy}-${mm}-${dd}`;
+}
+function loadBaseline(devId){
+  try{ const s = localStorage.getItem(todayKeyForDevice(devId)); if (s) return JSON.parse(s); }catch(_){}
+  return null;
+}
+function saveBaseline(devId, base){
+  try{ localStorage.setItem(todayKeyForDevice(devId), JSON.stringify(base)); }catch(_){}
+}
+function parseSpeeds(raw){
+  const txt = String(raw || '');
+  const map = {Off:0, Slow:0, Fast:0};
+  txt.split(',').map(x=>x.trim()).forEach(x=>{
+    const i = x.indexOf(':'); if (i === -1) return;
+    const k = x.slice(0,i).trim();
+    const val = x.slice(i+1).trim().replace(/[^\d]/g,'');
+    if (k in map) map[k] = parseInt(val||'0',10);
+  });
+  return map; // seconds
+}
+function updateUsageUIFromCounts(counts){
+  const devId = device?.id || 'unknown';
+  let base = loadBaseline(devId);
+  // if no baseline yet or counters decreased (device reset), set baseline = current
+  if (!base || counts.Slow < base.Slow || counts.Fast < base.Fast || counts.Off < base.Off){
+    base = {Off:counts.Off, Slow:counts.Slow, Fast:counts.Fast};
+    saveBaseline(devId, base);
+  }
+  const slowDelta  = Math.max(0, counts.Slow - base.Slow);
+  const fastDelta  = Math.max(0, counts.Fast - base.Fast);
+  const totalDelta = slowDelta + fastDelta;
+
+  setKv('#valUseToday',  toHMSFull(totalDelta));
+  setKv('#valUseNormal', toHMSFull(slowDelta));
+  setKv('#valUseTurbo',  toHMSFull(fastDelta));
+}
+
+/* ======== App flows ======== */
 async function startDataFlows(){
-  // Voltage
-  await subscribe(UUIDS.volt, v => setKv('#valVolt',  prettify.voltage(v)));
-  // Battery %
-  await subscribe(UUIDS.pct,  v => setKv('#valPct',   prettify.percent(v)));
-  // Charging
-  await subscribe(UUIDS.charge, v => setKv('#valCharge', prettify.charging(v)));
-  // State
-  await subscribe(UUIDS.state, v => setKv('#valState', String(v).trim() || '—'));
-  // Speeds (custom text → H:M:S formatting)
+  await subscribe(UUIDS.volt,   v => setKv('#valVolt',  prettify.voltage(v)));
+  await subscribe(UUIDS.pct,    v => setKv('#valPct',   prettify.percent(v)));
+  await subscribe(UUIDS.charge, v => setKv('#valCharge',prettify.charging(v)));
+  await subscribe(UUIDS.state,  v => {
+    const s = String(v).trim();
+    setKv('#valState', s || '—');
+    // reflect into segmented control
+    const lower = s.toLowerCase();
+    const mode = lower.includes('turbo') ? 'turbo' : (lower.includes('normal') ? 'normal' : (lower.includes('off') ? 'off' : null));
+    if (mode) setActiveMode(mode, false);
+  });
+
+  // Poll speeds → compute "today" usage
   await poll(UUIDS.speeds, raw => {
-    const txt = String(raw);
-    const parts = {};
-    txt.split(',').map(x=>x.trim()).forEach(x=>{
-      if (!x) return;
-      const i = x.indexOf(':'); if (i === -1) return;
-      const k = x.slice(0,i).trim();
-      const val = x.slice(i+1).trim().replace(/[^\d]/g,'');
-      parts[k] = val||'0';
-    });
-    const pretty = [`Off: ${toHMS(parts.Off)}`, `Slow: ${toHMS(parts.Slow)}`, `Fast: ${toHMS(parts.Fast)}`].join(', ');
-    rememberValue(UUIDS.speeds, pretty);
-    setKv('#valSpeeds', pretty);
+    const counts = parseSpeeds(raw);
+    updateUsageUIFromCounts(counts);
   }, 2000);
 }
 
+/* ======== Mode control (writes 'o'/'n'/'t') ======== */
+function setActiveMode(mode, write=true){
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.remove('active'));
+  const btn = document.querySelector(`#modeSeg button[data-mode="${mode}"]`);
+  if (btn) btn.classList.add('active');
+  if (write){
+    const map = {off:'o', normal:'n', turbo:'t'};
+    const payload = map[mode] || 'n';
+    writeControlText(payload);
+  }
+}
+async function writeControlText(s){
+  const id = sanitizeUuid(UUIDS.state);
+  try{
+    await ensureConnected();
+    const ch = await getCharacteristic(id);
+    if (!(ch.properties.write || ch.properties.writeWithoutResponse)){
+      log(`Write not supported on ${id}`, 'warn'); return;
+    }
+    await ch.writeValue(new TextEncoder().encode(s));
+    log(`Wrote text "${s}" to ${id}`);
+  }catch(e){ handleError(`writeControl(${id})`, e); }
+}
+
+/* ======== Lifecycle ======== */
 function onDisconnected(){
   uiEnable(false);
   setStatus('Disconnected');
@@ -388,13 +384,11 @@ function onDisconnected(){
   log('Device disconnected');
   tryReconnect();
 }
-
 async function disconnect(){
   try{ if (device && device.gatt?.connected) device.gatt.disconnect(); }
   catch(e){ handleError('disconnect', e); }
   finally{ onDisconnected(); }
 }
-
 function handleError(where, e, opts={}){
   const name = e?.name || 'Error';
   const msg  = e?.message || String(e);
@@ -408,21 +402,21 @@ function handleError(where, e, opts={}){
 function hintForError(name, msg){
   const m = (msg||'').toLowerCase();
   if (m.includes('not supported') && m.includes('bluetooth')) return 'This browser/device does not support Web Bluetooth.';
-  if (m.includes('not found under allowed services')) return 'Firmware UUID outside allowed service. (Developer action)';
+  if (m.includes('not found under allowed services')) return 'Firmware UUID outside allowed service.';
   if (m.includes('no services matching')) return 'Service not found on device.';
   if (m.includes('security') || m.includes('not authorized') || m.includes('insufficient')) return 'Requires pairing; accept the OS prompt.';
   if (m.includes('disconnected')) return 'Move closer / keep screen awake.';
   return '';
 }
 
-// UI bindings
+/* ======== UI events ======== */
 $('#btnConnect').onclick = async () => {
   try{
     if (!navigator.bluetooth){ alert('This browser does not support Web Bluetooth. Use Chrome on Android or Desktop.'); return; }
     setStatus('Requesting device…');
     device = await navigator.bluetooth.requestDevice({
       acceptAllDevices:true,
-      optionalServices:[PRIMARY_SERVICE] // add more service UUIDs here if needed in future
+      optionalServices:[PRIMARY_SERVICE]
     });
     device.addEventListener('gattserverdisconnected', onDisconnected);
     $('#devName').textContent = 'Device: ' + (device.name || 'Unknown');
@@ -432,45 +426,43 @@ $('#btnConnect').onclick = async () => {
     server = await device.gatt.connect();
     service = await server.getPrimaryService(PRIMARY_SERVICE);
 
-    // Keep screen awake to reduce drops
     if ('wakeLock' in navigator && !wakeLock){
-      try{
-        wakeLock = await navigator.wakeLock.request('screen');
-        wakeLock.addEventListener?.('release', ()=>{ wakeLock=null; });
-        log('Wake lock acquired');
-      }catch(e){ log('Wake lock failed: ' + e.message, 'warn'); }
+      try{ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener?.('release', ()=>{ wakeLock=null; }); log('Wake lock acquired'); }
+      catch(e){ log('Wake lock failed: ' + e.message, 'warn'); }
     }
 
     uiEnable(true);
     setStatus('Connected');
     log(`Connected to ${device.name || 'device'} (${device.id || 'no-id'})`);
 
+    // init usage baseline for today (if absent)
+    const base = loadBaseline(device.id);
+    if (!base) saveBaseline(device.id, {Off:0,Slow:0,Fast:0}); // will be replaced on first speeds read
+
     await scanGatt();
     await startDataFlows();
-  }catch(e){
-    handleError('connectFlow', e);
-  }
+  }catch(e){ handleError('connectFlow', e); }
 };
 $('#btnReconnect').onclick = async () => { try{ await ensureConnected(); await scanGatt(); await startDataFlows(); }catch(e){ handleError('reconnect', e); } };
 $('#btnDisconnect').onclick = () => disconnect();
 $('#btnScan').onclick       = () => scanGatt();
 $('#btnClearLog').onclick   = () => { $('#log').textContent=''; };
 
+document.querySelectorAll('#modeSeg button').forEach(btn=>{
+  btn.onclick = () => setActiveMode(btn.dataset.mode, true);
+});
+
 const root = document.documentElement;
 $('#btnTheme').onclick = () => {
-  if (root.getAttribute('data-theme')==='dark'){
-    root.removeAttribute('data-theme'); $('#btnTheme').textContent='🌙';
-  }else{
-    root.setAttribute('data-theme','dark'); $('#btnTheme').textContent='☀️';
-  }
+  if (root.getAttribute('data-theme')==='dark'){ root.removeAttribute('data-theme'); $('#btnTheme').textContent='🌙'; }
+  else { root.setAttribute('data-theme','dark'); $('#btnTheme').textContent='☀️'; }
 };
 
-// Product image setup (inline SVG placeholder if no URL)
+// Product image
 (function setProductImg(){
   const el = $('#productImg');
-  if (PRODUCT_IMAGE_URL){
-    el.src = PRODUCT_IMAGE_URL;
-  }else{
+  if (PRODUCT_IMAGE_URL){ el.src = PRODUCT_IMAGE_URL; }
+  else{
     const svg = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'>
       <rect x='16' y='10' width='96' height='108' rx='16' ry='16' fill='%23ffffff' stroke='%232563eb' stroke-width='3'/>
       <rect x='24' y='22' width='80' height='20' rx='6' ry='6' fill='%232563eb' opacity='0.1'/>
@@ -483,7 +475,7 @@ $('#btnTheme').onclick = () => {
   }
 })();
 
-// Warn early if unsupported browser (especially iOS)
+// Unsupported browser notice
 document.addEventListener('DOMContentLoaded', () => {
   if (!('bluetooth' in navigator)){
     setStatus('Web Bluetooth not supported', 'err');
